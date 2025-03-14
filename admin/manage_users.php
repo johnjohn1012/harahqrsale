@@ -253,6 +253,51 @@ try {
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="manage_employees.php">
+                            <i class="fas fa-user-tie me-2"></i>Employees
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_shifts.php">
+                            <i class="fas fa-clock me-2"></i>Shifts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_staff_shifts.php">
+                            <i class="fas fa-calendar-alt me-2"></i>Staff Shifts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_reservations.php">
+                            <i class="fas fa-calendar-check me-2"></i>Reservations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_payment_transactions.php">
+                            <i class="fas fa-money-bill-wave me-2"></i>Payments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_sales.php">
+                            <i class="fas fa-chart-line me-2"></i>Sales
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_feedback.php">
+                            <i class="fas fa-comments me-2"></i>Feedback
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_system_logs.php">
+                            <i class="fas fa-history me-2"></i>System Logs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_notifications.php">
+                            <i class="fas fa-bell me-2"></i>Notifications
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="reports.php">
                             <i class="fas fa-chart-bar me-2"></i>Reports
                         </a>

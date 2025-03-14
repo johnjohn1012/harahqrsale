@@ -46,7 +46,7 @@ try {
     if ($_POST['status'] === 'PREPARING') {
         $message = 'Table ' . $table_number . ' - Order #' . $_POST['order_id'] . ' is being prepared';
         $type = 'ORDER_PREPARING';
-    } else if ($_POST['status'] === 'READY') {
+    } else if ($_POST['status'] === 'COMPLETED') {
         $message = 'Table ' . $table_number . ' - Order #' . $_POST['order_id'] . ' is ready for service';
         $type = 'ORDER_READY';
 

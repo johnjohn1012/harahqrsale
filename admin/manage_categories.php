@@ -32,51 +32,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['success'] = "Category updated successfully!";
                     break;
 
-                case 'toggle_status':
-                    $category_id = $_POST['category_id'];
-                    $new_status = $_POST['is_disabled'] == '1' ? 0 : 1;
-                    
-                    // Start transaction
-                    $conn->beginTransaction();
-                    
-                    // Update category status
-                    $stmt = $conn->prepare("UPDATE categories SET is_disabled = ? WHERE category_id = ?");
-                    $stmt->execute([$new_status, $category_id]);
-                    
-                    // If category is being disabled, disable all its products
-                    if ($new_status == 1) {
-                        $stmt = $conn->prepare("UPDATE products SET is_disabled = 1 WHERE category_id = ?");
-                        $stmt->execute([$category_id]);
-                    }
-                    
-                    $conn->commit();
-                    $_SESSION['success'] = "Category status updated successfully!";
+                case 'delete':
+                    $stmt = $conn->prepare("DELETE FROM categories WHERE category_id = ?");
+                    $stmt->execute([$_POST['category_id']]);
+                    $_SESSION['success'] = "Category deleted successfully!";
                     break;
 
-                case 'delete':
-                    // Check if category has products
-                    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM products WHERE category_id = ?");
-                    $stmt->execute([$_POST['category_id']]);
-                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    if ($result['count'] > 0) {
-                        $_SESSION['error'] = "Cannot delete category. Please remove or reassign all products in this category first.";
-                    } else {
-                        $stmt = $conn->prepare("DELETE FROM categories WHERE category_id = ?");
-                        $stmt->execute([$_POST['category_id']]);
-                        $_SESSION['success'] = "Category deleted successfully!";
-                    }
+                case 'toggle_status':
+                    $stmt = $conn->prepare("UPDATE categories SET is_disabled = ? WHERE category_id = ?");
+                    $stmt->execute([
+                        $_POST['is_disabled'] == '1' ? 0 : 1,
+                        $_POST['category_id']
+                    ]);
+                    $_SESSION['success'] = "Category status updated successfully!";
                     break;
             }
         }
     } catch (PDOException $e) {
-        if (isset($conn) && $conn->inTransaction()) {
-            $conn->rollBack();
-        }
         $_SESSION['error'] = "Error: " . $e->getMessage();
     }
     
-    header('Location: manage_categories.php');
+    // Redirect to prevent form resubmission
+    header('Location: ' . $_SERVER['PHP_SELF']);
     exit();
 }
 
@@ -243,6 +220,51 @@ try {
                     <li class="nav-item">
                         <a class="nav-link" href="manage_users.php">
                             <i class="fas fa-users me-2"></i>Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_employees.php">
+                            <i class="fas fa-user-tie me-2"></i>Employees
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_shifts.php">
+                            <i class="fas fa-clock me-2"></i>Shifts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_staff_shifts.php">
+                            <i class="fas fa-calendar-alt me-2"></i>Staff Shifts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_reservations.php">
+                            <i class="fas fa-calendar-check me-2"></i>Reservations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_payment_transactions.php">
+                            <i class="fas fa-money-bill-wave me-2"></i>Payments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_sales.php">
+                            <i class="fas fa-chart-line me-2"></i>Sales
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_feedback.php">
+                            <i class="fas fa-comments me-2"></i>Feedback
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_system_logs.php">
+                            <i class="fas fa-history me-2"></i>System Logs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_notifications.php">
+                            <i class="fas fa-bell me-2"></i>Notifications
                         </a>
                     </li>
                     <li class="nav-item">

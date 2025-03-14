@@ -30,7 +30,7 @@ try {
         LEFT JOIN tables t ON o.table_id = t.table_id 
         LEFT JOIN order_items oi ON o.order_id = oi.order_id
         LEFT JOIN products p ON oi.product_id = p.product_id
-        WHERE o.status IN ('PENDING', 'PREPARING') 
+        WHERE o.status IN ('PAID', 'PREPARING') 
         GROUP BY o.order_id, o.status, o.created_at, o.total_amount, t.table_number
         ORDER BY o.created_at ASC
     ");
@@ -208,7 +208,7 @@ try {
                                 <i class="fas fa-fire me-2"></i>Start Preparing
                             </button>
                         <?php else: ?>
-                            <button class="btn btn-success w-100 mt-3" onclick="updateOrderStatus(<?php echo $order['order_id']; ?>, 'READY')">
+                            <button class="btn btn-success w-100 mt-3" onclick="updateOrderStatus(<?php echo $order['order_id']; ?>, 'COMPLETED')">
                                 <i class="fas fa-check me-2"></i>Mark as Ready
                             </button>
                         <?php endif; ?>
@@ -266,7 +266,20 @@ function updateOrderStatus(orderId, status) {
                 button.innerHTML = originalText;
                 return;
             }
-            location.reload();
+            // Instead of reloading, update the order card
+            const $orderCard = $(button).closest('.order-card');
+            if (status === 'PREPARING') {
+                $orderCard.find('.card-header').removeClass('bg-warning').addClass('bg-info');
+                $orderCard.find('button').removeClass('btn-info').addClass('btn-success')
+                    .html('<i class="fas fa-check me-2"></i>Mark as Ready')
+                    .attr('onclick', `updateOrderStatus(${orderId}, 'COMPLETED')`);
+            } else if (status === 'COMPLETED') {
+                $orderCard.fadeOut(500, function() {
+                    $(this).remove();
+                });
+            }
+            button.disabled = false;
+            button.innerHTML = originalText;
         },
         error: function(xhr) {
             console.error('Error:', xhr.responseText);
@@ -288,27 +301,37 @@ function updateOrderStatus(orderId, status) {
 
 function updateWaitingTimes() {
     $('.timer').each(function() {
-        const createdAt = new Date($(this).data('created'));
-        const now = new Date();
+        const $timer = $(this);
+        const $timeSpan = $timer.find('.waiting-time');
+        let currentTime = parseInt($timeSpan.data('current-time') || 0);
         
-        // Calculate time difference in seconds
-        const diffInSeconds = Math.floor((now - createdAt) / 1000);
+        // If this is the first time, initialize the current time
+        if (!currentTime) {
+            const createdAt = new Date($timer.data('created'));
+            const now = new Date();
+            currentTime = Math.floor((now - createdAt) / 1000);
+            $timeSpan.data('current-time', currentTime);
+        } else {
+            // Increment the current time by 1 second
+            currentTime++;
+            $timeSpan.data('current-time', currentTime);
+        }
         
         // Calculate minutes and seconds
-        const minutes = Math.floor(diffInSeconds / 60);
-        const seconds = diffInSeconds % 60;
+        const minutes = Math.floor(currentTime / 60);
+        const seconds = currentTime % 60;
         
         // Update the display
         const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        $(this).find('.waiting-time').text(timeString);
+        $timeSpan.text(timeString);
         
         // Update styling
         if (minutes >= 15) {
-            $(this).addClass('danger').removeClass('warning');
+            $timer.addClass('danger').removeClass('warning');
         } else if (minutes >= 10) {
-            $(this).addClass('warning').removeClass('danger');
+            $timer.addClass('warning').removeClass('danger');
         } else {
-            $(this).removeClass('warning danger');
+            $timer.removeClass('warning danger');
         }
     });
 }
@@ -320,7 +343,27 @@ function loadNewOrders() {
         success: function(response) {
             if (response.new_orders) {
                 document.getElementById('newOrderSound').play();
-                location.reload();
+                // Instead of reloading, append new orders
+                const $ordersContainer = $('#ordersContainer');
+                const existingOrderIds = new Set($('.order-card').map(function() {
+                    return $(this).find('h5').text().match(/#(\d+)/)[1];
+                }).get());
+                
+                // Parse the new orders HTML
+                const $newOrders = $(response.new_orders);
+                $newOrders.each(function() {
+                    const orderId = $(this).find('h5').text().match(/#(\d+)/)[1];
+                    if (!existingOrderIds.has(orderId)) {
+                        // Add the new order with a fade-in effect
+                        $(this).addClass('fade-in').appendTo($ordersContainer);
+                        // Initialize timer for the new order
+                        const $timer = $(this).find('.timer');
+                        const createdAt = new Date($timer.data('created'));
+                        const now = new Date();
+                        const currentTime = Math.floor((now - createdAt) / 1000);
+                        $timer.find('.waiting-time').data('current-time', currentTime);
+                    }
+                });
             }
         }
     });

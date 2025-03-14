@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             switch ($_POST['action']) {
                 case 'add':
                     // Handle file upload
-                    $image_path = '';
+                    $image_url = '';
                     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
                         $upload_dir = '../uploads/products/';
                         if (!file_exists($upload_dir)) {
@@ -27,23 +27,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $target_path = $upload_dir . $new_filename;
                         
                         if (move_uploaded_file($_FILES['image']['tmp_name'], $target_path)) {
-                            $image_path = 'uploads/products/' . $new_filename;
+                            $image_url = 'uploads/products/' . $new_filename;
                         }
                     }
 
-                    $stmt = $conn->prepare("INSERT INTO products (name, description, price, category_id, image_path) VALUES (?, ?, ?, ?, ?)");
+                    $stmt = $conn->prepare("INSERT INTO products (name, description, price, category_id, image_url) VALUES (?, ?, ?, ?, ?)");
                     $stmt->execute([
                         $_POST['name'],
                         $_POST['description'],
                         $_POST['price'],
                         $_POST['category_id'],
-                        $image_path
+                        $image_url
                     ]);
                     $_SESSION['success'] = "Product added successfully!";
                     break;
 
                 case 'edit':
-                    $image_path = $_POST['current_image'];
+                    $image_url = $_POST['current_image'];
                     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
                         $upload_dir = '../uploads/products/';
                         if (!file_exists($upload_dir)) {
@@ -59,17 +59,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             if (!empty($_POST['current_image'])) {
                                 @unlink('../' . $_POST['current_image']);
                             }
-                            $image_path = 'uploads/products/' . $new_filename;
+                            $image_url = 'uploads/products/' . $new_filename;
                         }
                     }
 
-                    $stmt = $conn->prepare("UPDATE products SET name = ?, description = ?, price = ?, category_id = ?, image_path = ? WHERE product_id = ?");
+                    $stmt = $conn->prepare("UPDATE products SET name = ?, description = ?, price = ?, category_id = ?, image_url = ? WHERE product_id = ?");
                     $stmt->execute([
                         $_POST['name'],
                         $_POST['description'],
                         $_POST['price'],
                         $_POST['category_id'],
-                        $image_path,
+                        $image_url,
                         $_POST['product_id']
                     ]);
                     $_SESSION['success'] = "Product updated successfully!";
@@ -77,11 +77,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 case 'delete':
                     // Delete product image if exists
-                    $stmt = $conn->prepare("SELECT image_path FROM products WHERE product_id = ?");
+                    $stmt = $conn->prepare("SELECT image_url FROM products WHERE product_id = ?");
                     $stmt->execute([$_POST['product_id']]);
                     $product = $stmt->fetch(PDO::FETCH_ASSOC);
-                    if ($product && !empty($product['image_path'])) {
-                        @unlink('../' . $product['image_path']);
+                    if ($product && !empty($product['image_url'])) {
+                        @unlink('../' . $product['image_url']);
                     }
 
                     $stmt = $conn->prepare("DELETE FROM products WHERE product_id = ?");
@@ -112,7 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['error'] = "Error: " . $e->getMessage();
     }
     
-    header('Location: manage_products.php');
+    // Redirect to prevent form resubmission
+    header('Location: ' . $_SERVER['PHP_SELF']);
     exit();
 }
 
@@ -289,6 +290,51 @@ try {
                     <li class="nav-item">
                         <a class="nav-link" href="manage_users.php">
                             <i class="fas fa-users me-2"></i>Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_employees.php">
+                            <i class="fas fa-user-tie me-2"></i>Employees
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_shifts.php">
+                            <i class="fas fa-clock me-2"></i>Shifts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_staff_shifts.php">
+                            <i class="fas fa-calendar-alt me-2"></i>Staff Shifts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_reservations.php">
+                            <i class="fas fa-calendar-check me-2"></i>Reservations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_payment_transactions.php">
+                            <i class="fas fa-money-bill-wave me-2"></i>Payments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_sales.php">
+                            <i class="fas fa-chart-line me-2"></i>Sales
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_feedback.php">
+                            <i class="fas fa-comments me-2"></i>Feedback
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_system_logs.php">
+                            <i class="fas fa-history me-2"></i>System Logs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_notifications.php">
+                            <i class="fas fa-bell me-2"></i>Notifications
                         </a>
                     </li>
                     <li class="nav-item">
@@ -533,13 +579,13 @@ try {
             document.getElementById('edit_category_id').value = product.category_id;
             document.getElementById('edit_description').value = product.description;
             document.getElementById('edit_price').value = product.price;
-            document.getElementById('edit_current_image').value = product.image_path;
+            document.getElementById('edit_current_image').value = product.image_url;
 
             const imagePreview = document.getElementById('edit_image_preview');
             imagePreview.innerHTML = '';
-            if (product.image_path) {
+            if (product.image_url) {
                 const img = document.createElement('img');
-                img.src = '../' + product.image_path;
+                img.src = '../' + product.image_url;
                 img.className = 'product-image';
                 img.alt = product.name;
                 imagePreview.appendChild(img);

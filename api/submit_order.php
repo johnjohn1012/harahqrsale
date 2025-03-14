@@ -1,79 +1,102 @@
 <?php
+session_start();
 require_once '../config/database.php';
 
 header('Content-Type: application/json');
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit();
-}
-
 try {
-    $table_id = $_POST['table_id'];
-    $items = json_decode($_POST['items'], true);
+    // Get POST data
+    $data = json_decode(file_get_contents('php://input'), true);
     
-    if (!$items || !is_array($items)) {
-        throw new Exception('Invalid items data');
+    if (!$data) {
+        throw new Exception('Invalid request data');
     }
-    
-    // Calculate total amount
-    $total_amount = 0;
-    foreach ($items as $item) {
-        $total_amount += $item['price'] * $item['quantity'];
-    }
-    
+
     $conn->beginTransaction();
-    
+
+    // Create new customer record
+    $stmt = $conn->prepare("
+        INSERT INTO customers (first_name, last_name, email, contact_number)
+        VALUES (?, ?, ?, ?)
+    ");
+    $stmt->execute([
+        $data['first_name'],
+        $data['last_name'],
+        $data['email'] ?: null,
+        $data['contact_number'] ?: null
+    ]);
+    $new_customer_id = $conn->lastInsertId();
+
     // Create order
     $stmt = $conn->prepare("
-        INSERT INTO orders (table_id, order_type, status, total_amount) 
-        VALUES (?, 'QR', 'PENDING', ?)
+        INSERT INTO orders (table_id, customer_id, order_type, status, total_amount)
+        VALUES (?, ?, 'QR', 'PENDING', ?)
     ");
-    $stmt->execute([$table_id, $total_amount]);
+    $stmt->execute([
+        $data['table_id'],
+        $new_customer_id,
+        $data['total_amount']
+    ]);
     $order_id = $conn->lastInsertId();
-    
+
     // Insert order items
     $stmt = $conn->prepare("
-        INSERT INTO order_items (order_id, product_id, quantity, unit_price, subtotal) 
+        INSERT INTO order_items (order_id, product_id, quantity, unit_price, subtotal)
         VALUES (?, ?, ?, ?, ?)
     ");
-    
-    foreach ($items as $item) {
-        $subtotal = $item['price'] * $item['quantity'];
+
+    foreach ($data['items'] as $item) {
         $stmt->execute([
             $order_id,
-            $item['productId'],
+            $item['product_id'],
             $item['quantity'],
             $item['price'],
-            $subtotal
+            $item['quantity'] * $item['price']
         ]);
+        $order_item_id = $conn->lastInsertId();
+
+        // Handle modifications if any
+        if (!empty($item['modifications'])) {
+            $mod_stmt = $conn->prepare("
+                INSERT INTO order_modifications (order_item_id, description)
+                VALUES (?, ?)
+            ");
+            foreach ($item['modifications'] as $mod) {
+                $mod_stmt->execute([$order_item_id, $mod]);
+            }
+        }
     }
-    
-    // Update table status
-    $stmt = $conn->prepare("UPDATE tables SET status = 'OCCUPIED' WHERE table_id = ?");
-    $stmt->execute([$table_id]);
-    
-    // Create notification for cashier
+
+    // Create notification for kitchen
     $stmt = $conn->prepare("
-        INSERT INTO notifications (order_id, message, type) 
-        VALUES (?, 'New order received for Table #" . $table_id . "', 'PAYMENT')
+        INSERT INTO notifications (order_id, message, type)
+        VALUES (?, 'New order received', 'ORDER_READY')
     ");
     $stmt->execute([$order_id]);
-    
+
+    // Update table status
+    $stmt = $conn->prepare("
+        UPDATE tables SET status = 'OCCUPIED'
+        WHERE table_id = ?
+    ");
+    $stmt->execute([$data['table_id']]);
+
     $conn->commit();
-    
+
     echo json_encode([
         'success' => true,
-        'order_id' => $order_id,
-        'message' => 'Order submitted successfully'
+        'message' => 'Order placed successfully',
+        'order_id' => $order_id
     ]);
-    
+
 } catch (Exception $e) {
     if ($conn->inTransaction()) {
         $conn->rollBack();
     }
-    http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    
+    echo json_encode([
+        'success' => false,
+        'message' => $e->getMessage()
+    ]);
 }
 ?> 

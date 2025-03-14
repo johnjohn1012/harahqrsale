@@ -12,15 +12,27 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $table_number = $_POST['table_number'];
-        $qr_code = 'table_' . $table_number . '_' . uniqid();
         
-        $stmt = $conn->prepare("INSERT INTO tables (table_number, qr_code, status) VALUES (?, ?, 'AVAILABLE')");
-        $stmt->execute([$table_number, $qr_code]);
+        // Check if table number already exists
+        $check_stmt = $conn->prepare("SELECT COUNT(*) as count FROM tables WHERE table_number = ?");
+        $check_stmt->execute([$table_number]);
+        $result = $check_stmt->fetch(PDO::FETCH_ASSOC);
         
-        $success = "Table {$table_number} created successfully!";
+        if ($result['count'] > 0) {
+            $_SESSION['error'] = "Table {$table_number} already exists.";
+        } else {
+            $qr_code = 'table_' . $table_number . '_' . uniqid();
+            $stmt = $conn->prepare("INSERT INTO tables (table_number, qr_code, status) VALUES (?, ?, 'AVAILABLE')");
+            $stmt->execute([$table_number, $qr_code]);
+            $_SESSION['success'] = "Table {$table_number} created successfully!";
+        }
     } catch (PDOException $e) {
-        $error = "Error creating table: " . $e->getMessage();
+        $_SESSION['error'] = "Error creating table: " . $e->getMessage();
     }
+    
+    // Redirect to prevent form resubmission
+    header('Location: ' . $_SERVER['PHP_SELF']);
+    exit();
 }
 
 // Get all tables
@@ -28,7 +40,7 @@ try {
     $stmt = $conn->query("SELECT * FROM tables ORDER BY table_number");
     $tables = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    $error = "Database error: " . $e->getMessage();
+    $_SESSION['error'] = "Database error: " . $e->getMessage();
 }
 ?>
 
@@ -166,6 +178,51 @@ try {
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="manage_employees.php">
+                            <i class="fas fa-user-tie me-2"></i>Employees
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_shifts.php">
+                            <i class="fas fa-clock me-2"></i>Shifts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_staff_shifts.php">
+                            <i class="fas fa-calendar-alt me-2"></i>Staff Shifts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_reservations.php">
+                            <i class="fas fa-calendar-check me-2"></i>Reservations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_payment_transactions.php">
+                            <i class="fas fa-money-bill-wave me-2"></i>Payments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_sales.php">
+                            <i class="fas fa-chart-line me-2"></i>Sales
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_feedback.php">
+                            <i class="fas fa-comments me-2"></i>Feedback
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_system_logs.php">
+                            <i class="fas fa-history me-2"></i>System Logs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="manage_notifications.php">
+                            <i class="fas fa-bell me-2"></i>Notifications
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="reports.php">
                             <i class="fas fa-chart-bar me-2"></i>Reports
                         </a>
@@ -181,17 +238,25 @@ try {
     </nav>
 
     <div class="container mt-4">
-        <?php if (isset($success)): ?>
-            <div class="alert alert-success">
+        <?php if (isset($_SESSION['success'])): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
                 <i class="fas fa-check-circle me-2"></i>
-                <?php echo $success; ?>
+                <?php 
+                    echo $_SESSION['success'];
+                    unset($_SESSION['success']);
+                ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
 
-        <?php if (isset($error)): ?>
-            <div class="alert alert-danger">
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
                 <i class="fas fa-exclamation-circle me-2"></i>
-                <?php echo $error; ?>
+                <?php 
+                    echo $_SESSION['error'];
+                    unset($_SESSION['error']);
+                ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
 
@@ -200,7 +265,7 @@ try {
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-4">Add New Table</h5>
-                        <form method="POST" class="d-flex gap-3">
+                        <form method="POST" class="d-flex gap-3" id="addTableForm">
                             <input type="number" name="table_number" class="form-control" placeholder="Table Number" required>
                             <button type="submit" class="btn btn-add-table">
                                 <i class="fas fa-plus me-2"></i>Add Table
@@ -214,7 +279,7 @@ try {
         <div class="row">
             <?php foreach($tables as $table): ?>
             <div class="col-md-6 col-lg-4">
-                <div class="table-card">
+                <div class="table-card" data-table-id="<?php echo $table['table_id']; ?>">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="mb-0">Table <?php echo htmlspecialchars($table['table_number']); ?></h5>
                         <span class="status-badge status-<?php echo strtolower($table['status']); ?>">
@@ -258,6 +323,43 @@ try {
             link.href = canvas.toDataURL();
             link.click();
         }
+
+        // Prevent form resubmission on page refresh
+        if (window.history.replaceState) {
+            window.history.replaceState(null, null, window.location.href);
+        }
+
+        // Real-time updates
+        function updateTableStatuses() {
+            fetch('../api/get_tables.php')
+                .then(response => response.text())
+                .then(html => {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+                    
+                    // Update each table's status
+                    tempDiv.querySelectorAll('.table-card').forEach(newTableCard => {
+                        const tableId = newTableCard.getAttribute('data-table-id');
+                        const currentTableCard = document.querySelector(`.table-card[data-table-id="${tableId}"]`);
+                        
+                        if (currentTableCard) {
+                            const newStatus = newTableCard.querySelector('.status-badge').textContent.trim();
+                            const currentStatus = currentTableCard.querySelector('.status-badge');
+                            
+                            // Update status badge
+                            currentStatus.textContent = newStatus;
+                            currentStatus.className = newTableCard.querySelector('.status-badge').className;
+                            
+                            // Update table card background if needed
+                            currentTableCard.className = newTableCard.className;
+                        }
+                    });
+                })
+                .catch(error => console.error('Error updating table statuses:', error));
+        }
+
+        // Update every 5 seconds
+        setInterval(updateTableStatuses, 5000);
     </script>
 </body>
 </html> 

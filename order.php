@@ -20,11 +20,11 @@ try {
     }
 
     // Get all available categories
-    $stmt = $conn->query("SELECT * FROM categories ORDER BY name");
+    $stmt = $conn->query("SELECT * FROM categories WHERE is_disabled = 0 ORDER BY name");
     $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Get all available products
-    $stmt = $conn->query("SELECT * FROM products WHERE is_available = 1 ORDER BY name");
+    $stmt = $conn->query("SELECT * FROM products WHERE is_available = 1 AND is_disabled = 0 ORDER BY name");
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {
@@ -34,6 +34,9 @@ try {
 // Store table info in session
 $_SESSION['table_id'] = $table['table_id'];
 $_SESSION['table_number'] = $table['table_number'];
+
+// Check if this is a redirect after successful order
+$showSuccessMessage = isset($_GET['success']) && $_GET['success'] == 1;
 ?>
 
 <!DOCTYPE html>
@@ -405,9 +408,14 @@ $_SESSION['table_number'] = $table['table_number'];
                 <i class="fas fa-utensils me-2"></i>
                 Table <?php echo htmlspecialchars($table['table_number']); ?>
             </span>
-            <button type="button" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#policyModal">
-                <i class="fas fa-info-circle me-2"></i>Policies & Rules
-            </button>
+            <div>
+                <button type="button" class="btn btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#feedbackModal">
+                    <i class="fas fa-comment me-2"></i>Feedback
+                </button>
+                <button type="button" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#policyModal">
+                    <i class="fas fa-info-circle me-2"></i>Policies & Rules
+                </button>
+            </div>
         </div>
     </nav>
 
@@ -535,14 +543,107 @@ $_SESSION['table_number'] = $table['table_number'];
         </div>
     </div>
 
+    <!-- Customer Information Modal -->
+    <div class="modal fade" id="customerInfoModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Customer Information</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="customerInfoForm">
+                        <div class="mb-3">
+                            <label for="first_name" class="form-label">First Name (Optional)</label>
+                            <input type="text" class="form-control" id="first_name" name="first_name" placeholder="Enter your first name">
+                        </div>
+                        <div class="mb-3">
+                            <label for="last_name" class="form-label">Last Name (Optional)</label>
+                            <input type="text" class="form-control" id="last_name" name="last_name" placeholder="Enter your last name">
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email (Optional)</label>
+                            <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email">
+                        </div>
+                        <div class="mb-3">
+                            <label for="contact_number" class="form-label">Contact Number (Optional)</label>
+                            <input type="tel" class="form-control" id="contact_number" name="contact_number" placeholder="Enter your contact number">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="submitCustomerInfo()">Continue to Order</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div class="modal fade" id="feedbackModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Share Your Feedback</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="feedbackForm">
+                        <input type="hidden" id="feedbackOrderId" name="order_id" value="<?php echo isset($_GET['order_id']) ? htmlspecialchars($_GET['order_id']) : ''; ?>">
+                        <div class="mb-3">
+                            <label for="rating" class="form-label">How would you rate your experience?</label>
+                            <div class="rating-stars mb-2">
+                                <i class="fas fa-star fa-2x" data-rating="1" style="color: #ddd; cursor: pointer;"></i>
+                                <i class="fas fa-star fa-2x" data-rating="2" style="color: #ddd; cursor: pointer;"></i>
+                                <i class="fas fa-star fa-2x" data-rating="3" style="color: #ddd; cursor: pointer;"></i>
+                                <i class="fas fa-star fa-2x" data-rating="4" style="color: #ddd; cursor: pointer;"></i>
+                                <i class="fas fa-star fa-2x" data-rating="5" style="color: #ddd; cursor: pointer;"></i>
+                            </div>
+                            <input type="hidden" id="ratingValue" name="rating" value="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="feedbackType" class="form-label">Type of Feedback</label>
+                            <select class="form-select" id="feedbackType" name="feedbackType" required>
+                                <option value="">Select type...</option>
+                                <option value="food">Food Quality</option>
+                                <option value="service">Service</option>
+                                <option value="ambiance">Ambiance</option>
+                                <option value="cleanliness">Cleanliness</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="feedbackMessage" class="form-label">Your Message</label>
+                            <textarea class="form-control" id="feedbackMessage" name="feedbackMessage" rows="4" placeholder="Please share your experience..." required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="feedbackName" class="form-label">Name (Optional)</label>
+                            <input type="text" class="form-control" id="feedbackName" name="feedbackName" placeholder="Your name">
+                        </div>
+                        <div class="mb-3">
+                            <label for="feedbackContact" class="form-label">Contact (Optional)</label>
+                            <input type="text" class="form-control" id="feedbackContact" name="feedbackContact" placeholder="Your contact number">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="submitFeedback()">Submit Feedback</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let cart = {};
         let products = <?php echo json_encode($products); ?>;
         let cartModal = null;
+        let customerInfoModal = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             cartModal = new bootstrap.Modal(document.getElementById('cartModal'));
+            customerInfoModal = new bootstrap.Modal(document.getElementById('customerInfoModal'));
             
             // Add event listener for cart modal show
             document.getElementById('cartModal').addEventListener('show.bs.modal', function () {
@@ -646,6 +747,17 @@ $_SESSION['table_number'] = $table['table_number'];
             updateCartDisplay();
         }
 
+        function calculateTotal() {
+            let total = 0;
+            for (const productId in cart) {
+                const product = products.find(p => p.product_id == productId);
+                if (product) {
+                    total += parseFloat(product.price) * cart[productId];
+                }
+            }
+            return total;
+        }
+
         function placeOrder() {
             if (Object.keys(cart).length === 0) {
                 Swal.fire({
@@ -657,84 +769,93 @@ $_SESSION['table_number'] = $table['table_number'];
                 return;
             }
 
+            // Show customer information modal first
+            customerInfoModal.show();
+        }
+
+        function submitCustomerInfo() {
+            const firstName = document.getElementById('first_name').value.trim();
+            const lastName = document.getElementById('last_name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const contactNumber = document.getElementById('contact_number').value.trim();
+
+            // If no name is provided, use default values
+            const finalFirstName = firstName || 'QR';
+            const finalLastName = lastName || 'Customer';
+
+            // Show loading state
+            Swal.fire({
+                title: 'Processing Order',
+                text: 'Please wait while we process your order...',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                willOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
             const orderItems = [];
             for (const productId in cart) {
-                orderItems.push({
-                    product_id: productId,
-                    quantity: cart[productId]
-                });
+                const product = products.find(p => p.product_id == productId);
+                if (product) {
+                    orderItems.push({
+                        product_id: productId,
+                        quantity: cart[productId],
+                        price: product.price
+                    });
+                }
             }
 
-            fetch('api/place_order.php', {
+            fetch('api/submit_order.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     table_id: <?php echo $table['table_id']; ?>,
-                    items: orderItems
+                    items: orderItems,
+                    total_amount: calculateTotal(),
+                    first_name: finalFirstName,
+                    last_name: finalLastName,
+                    email: email,
+                    contact_number: contactNumber
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Order Placed Successfully!',
-                        html: `
-                            <div class="text-start">
-                                <p class="mb-3">Your order has been received and is being prepared.</p>
-                                <div class="alert alert-info">
-                                    <h6 class="mb-2"><i class="fas fa-info-circle me-2"></i>Important Instructions:</h6>
-                                    <ol class="mb-0">
-                                        <li>Please proceed to the counter to pay your order</li>
-                                        <li>State your table number: <strong>Table <?php echo htmlspecialchars($table['table_number']); ?></strong></li>
-                                        <li>Payment methods accepted: Cash and GCash</li>
-                                        <li>Your food will be served at your table</li>
-                                    </ol>
-                                </div>
-                                <div class="alert alert-warning">
-                                    <h6 class="mb-2"><i class="fas fa-exclamation-triangle me-2"></i>Please Note:</h6>
-                                    <ul class="mb-0">
-                                        <li>Payment must be completed before leaving</li>
-                                        <li>Orders are prepared in the order they are received</li>
-                                        <li>Please inform staff of any allergies or special requests</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        `,
-                        confirmButtonText: 'I Understand',
-                        confirmButtonColor: '#4e73df',
-                        showCancelButton: true,
-                        cancelButtonText: 'View Policies',
-                        cancelButtonColor: '#858796'
-                    }).then((result) => {
-                        // Clear all fields regardless of which button was clicked
-                        clearAllFields();
-                        
-                        if (!result.isConfirmed) {
-                            // Show policy modal
-                            const policyModal = new bootstrap.Modal(document.getElementById('policyModal'));
-                            policyModal.show();
-                        }
-                    });
+                    // Clear all fields first
+                    clearAllFields();
+                    
+                    // Close the modals
+                    customerInfoModal.hide();
+                    const cartModal = bootstrap.Modal.getInstance(document.getElementById('cartModal'));
+                    if (cartModal) {
+                        cartModal.hide();
+                    }
+                    
+                    // Redirect to the same page with a success parameter and preserve the table parameter
+                    const currentUrl = new URL(window.location.href);
+                    currentUrl.searchParams.set('success', '1');
+                    window.location.href = currentUrl.toString();
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: data.error || 'Failed to place order. Please try again.',
-                        confirmButtonColor: '#4e73df'
-                    });
+                    throw new Error(data.message || 'Failed to place order');
                 }
             })
             .catch(error => {
+                console.error('Error:', error);
                 Swal.fire({
                     icon: 'error',
-                    title: 'Error',
-                    text: 'An error occurred while placing your order. Please try again.',
+                    title: 'Order Failed',
+                    text: error.message || 'An error occurred while placing your order. Please try again.',
                     confirmButtonColor: '#4e73df'
                 });
-                console.error('Error:', error);
             });
         }
 
@@ -756,11 +877,182 @@ $_SESSION['table_number'] = $table['table_number'];
             document.querySelectorAll('.menu-item-container').forEach(container => {
                 container.style.display = 'block';
             });
+
+            // Clear customer information form
+            document.getElementById('customerInfoForm').reset();
             
-            // Close cart modal
+            // Close modals
             if (cartModal) {
                 cartModal.hide();
             }
+            if (customerInfoModal) {
+                customerInfoModal.hide();
+            }
+        }
+
+        // Add this at the beginning of your script section
+        <?php if ($showSuccessMessage): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            Swal.fire({
+                icon: 'success',
+                title: 'Order Placed Successfully!',
+                html: `
+                    <div class="text-start">
+                        <p class="mb-3">Your order has been received and is being prepared.</p>
+                        <div class="alert alert-info">
+                            <h6 class="mb-2"><i class="fas fa-info-circle me-2"></i>Important Instructions:</h6>
+                            <ol class="mb-0">
+                                <li>Please proceed to the counter to pay your order</li>
+                                <li>State your table number: <strong>Table <?php echo htmlspecialchars($table['table_number']); ?></strong></li>
+                                <li>Payment methods accepted: Cash and GCash</li>
+                                <li>Your food will be served at your table</li>
+                            </ol>
+                        </div>
+                        <div class="alert alert-warning">
+                            <h6 class="mb-2"><i class="fas fa-exclamation-triangle me-2"></i>Please Note:</h6>
+                            <ul class="mb-0">
+                                <li>Payment must be completed before leaving</li>
+                                <li>Orders are prepared in the order they are received</li>
+                                <li>Please inform staff of any allergies or special requests</li>
+                            </ul>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'I Understand',
+                confirmButtonColor: '#4e73df',
+                showCancelButton: true,
+                cancelButtonText: 'View Policies',
+                cancelButtonColor: '#858796'
+            }).then((result) => {
+                if (!result.isConfirmed) {
+                    // Show policy modal
+                    const policyModal = new bootstrap.Modal(document.getElementById('policyModal'));
+                    policyModal.show();
+                }
+                
+                // Remove the success parameter from URL without refreshing the page
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.delete('success');
+                window.history.replaceState({}, '', currentUrl.toString());
+            });
+        });
+        <?php endif; ?>
+
+        // Add this after your existing script code
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize star rating system
+            const stars = document.querySelectorAll('.rating-stars .fa-star');
+            stars.forEach(star => {
+                star.addEventListener('mouseover', function() {
+                    const rating = this.dataset.rating;
+                    highlightStars(rating);
+                });
+                
+                star.addEventListener('mouseout', function() {
+                    const currentRating = document.getElementById('ratingValue').value;
+                    highlightStars(currentRating);
+                });
+                
+                star.addEventListener('click', function() {
+                    const rating = this.dataset.rating;
+                    document.getElementById('ratingValue').value = rating;
+                    highlightStars(rating);
+                });
+            });
+        });
+
+        function highlightStars(rating) {
+            const stars = document.querySelectorAll('.rating-stars .fa-star');
+            stars.forEach(star => {
+                const starRating = star.dataset.rating;
+                if (starRating <= rating) {
+                    star.style.color = '#ffc107'; // Yellow color for active stars
+                } else {
+                    star.style.color = '#ddd'; // Gray color for inactive stars
+                }
+            });
+        }
+
+        function submitFeedback() {
+            const rating = document.getElementById('ratingValue').value;
+            const type = document.getElementById('feedbackType').value;
+            const message = document.getElementById('feedbackMessage').value;
+            const orderId = document.getElementById('feedbackOrderId').value;
+            
+            if (!orderId) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Order Required',
+                    text: 'Please provide an order ID to submit feedback.',
+                    confirmButtonColor: '#4e73df'
+                });
+                return;
+            }
+            
+            if (rating === '0') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Rating Required',
+                    text: 'Please select a rating before submitting.',
+                    confirmButtonColor: '#4e73df'
+                });
+                return;
+            }
+            
+            if (!type || !message) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Required Fields',
+                    text: 'Please fill in all required fields.',
+                    confirmButtonColor: '#4e73df'
+                });
+                return;
+            }
+
+            // Send feedback to server
+            fetch('api/submit_feedback.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    rating: rating,
+                    feedback_type: type,
+                    comment: message,
+                    name: document.getElementById('feedbackName').value,
+                    contact: document.getElementById('feedbackContact').value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Thank You!',
+                        text: 'Your feedback has been submitted successfully.',
+                        confirmButtonColor: '#4e73df'
+                    }).then(() => {
+                        // Clear the form and close the modal
+                        document.getElementById('feedbackForm').reset();
+                        document.getElementById('ratingValue').value = '0';
+                        highlightStars(0);
+                        const feedbackModal = bootstrap.Modal.getInstance(document.getElementById('feedbackModal'));
+                        feedbackModal.hide();
+                    });
+                } else {
+                    throw new Error(data.message || 'Failed to submit feedback');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Submission Failed',
+                    text: error.message || 'An error occurred while submitting your feedback. Please try again.',
+                    confirmButtonColor: '#4e73df'
+                });
+            });
         }
     </script>
 </body>
